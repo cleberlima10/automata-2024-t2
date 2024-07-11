@@ -1,54 +1,87 @@
-"""Implementação de autômatos finitos."""
+from typing import List, Dict, Tuple
 
+class AutomatonException(Exception):
+    pass
 
-def load_automata(filename):
-    """
-    Lê os dados de um autômato finito a partir de um arquivo.
+class Automaton:
+    def __init__(self, estados, sigma, delta, inicial, final):
+        self.estados = estados
+        self.sigma = sigma
+        self.delta = delta
+        self.inicial = inicial
+        self.final = final
 
-    A estsrutura do arquivo deve ser:
+def load_automaton(filename: str) -> Automaton:
+    estados = set()
+    sigma = set()
+    delta = {}
+    inicial = None
+    final = set()
 
-    <lista de símbolos do alfabeto, separados por espaço (' ')>
-    <lista de nomes de estados>
-    <lista de nomes de estados finais>
-    <nome do estado inicial>
-    <lista de regras de transição, com "origem símbolo destino">
+    try:
+        with open(filename, 'r') as file:
+            lines = file.readlines()
 
-    Um exemplo de arquivo válido é:
+        if len(lines) < 5:
+            raise AutomatonException("Formato do arquivo inválido.")
 
-    ```
-    a b
-    q0 q1 q2 q3
-    q0 q3
-    q0
-    q0 a q1
-    q0 b q2
-    q1 a q0
-    q1 b q3
-    q2 a q3
-    q2 b q0
-    q3 a q1
-    q3 b q2
-    ```
+        sigma = set(lines[0].strip().split())
+        estados = set(lines[1].strip().split())
+        final = set(lines[2].strip().split())
+        inicial = lines[3].strip()
 
-    Caso o arquivo seja inválido uma exceção Exception é gerada.
+        for transition in lines[4:]:
+            parts = transition.strip().split()
+            if len(parts) != 3:
+                raise AutomatonException("Regra de transição inválida.")
+            origem, simbolo, destino = parts
+            if origem not in estados or destino not in estados or simbolo not in sigma:
+                raise AutomatonException("Regra de transição contém símbolos/estados inválidos.")
+            if (origem, simbolo) in delta:
+                raise AutomatonException("Autômato determinístico requerido.")
+            delta[(origem, simbolo)] = destino
 
-    """
+        return Automaton(estados, sigma, delta, inicial, final)
 
-    with open(filename, "rt") as arquivo:
-        # processa arquivo...
-        pass
+    except FileNotFoundError:
+        raise AutomatonException(f"Arquivo {filename} não encontrado.")
+    except Exception as e:
+        raise AutomatonException(f"Erro ao carregar o autômato: {str(e)}")
 
-
-def process(automata, words):
-    """
-    Processa a lista de palavras e retora o resultado.
-    
-    Os resultados válidos são ACEITA, REJEITA, INVALIDA.
-    """
-
+def process(automaton: Automaton, words: List[str]) -> Dict[str, str]:
+    results = {}
     for word in words:
-        # tenta reconhecer `word`
+        current_state = automaton.inicial
+        accepted = True
+        for symbol in word:
+            if symbol not in automaton.sigma:
+                results[word] = "INVÁLIDA"
+                accepted = False
+                break
+            current_state = automaton.delta.get((current_state, symbol), None)
+            if current_state is None:
+                accepted = False
+                break
+        if accepted and current_state in automaton.final:
+            results[word] = "ACEITA"
+        else:
+            results[word] = "REJEITA"
+    return results
 
+def convert_to_nfda(automaton: Automaton) -> Automaton:
+   if __name__ == "__main__":
+    try:
+        automaton = load_automaton("automaton_description.txt")
+        words = ["aba", "abc", "aab", "ba"]
+        
+        print("Autômato carregado com sucesso!")
+        
+        results = process(automaton, words)
+        for word, result in results.items():
+            print(f"A palavra '{word}' é {result} pelo autômato.")
+        
+        nfda_automaton = convert_to_nfda(automaton)
+        print("Conversão para NFDA realizada com sucesso!")
 
-def convert_to_dfa(automata):
-    """Converte um NFA num DFA."""
+    except AutomatonException as e:
+        print(f"Erro ao carregar ou processar o autômato: {e}")
